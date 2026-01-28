@@ -4,41 +4,22 @@
 <meta charset="UTF-8">
 <title>چت آنلاین</title>
 <style>
-/* Reset */
-* { margin:0; padding:0; box-sizing:border-box; font-family:sans-serif; }
-html, body { height:100%; background:#0f172a; color:#fff; }
-
-/* Container کل */
-#container { display:flex; flex-direction:column; height:100%; }
-
-/* Topbar */
-#topbar { background:#111827; padding:10px 20px; display:flex; align-items:center; justify-content:flex-start; font-size:16px; }
-#topbar #online-dot { width:12px; height:12px; border-radius:50%; background:#4ade80; margin-right:8px; animation: pulse 1.5s infinite; }
-@keyframes pulse {
-  0% { transform: scale(1); opacity:1; }
-  50% { transform: scale(1.3); opacity:0.6; }
-  100% { transform: scale(1); opacity:1; }
-}
-
-/* Chatbox */
-#chatbox { flex:1; overflow-y:auto; padding:10px 20px; display:flex; flex-direction:column; }
-.message { margin-bottom:8px; }
-.message.user { color:#38bdf8; font-weight:bold; }
-.message.system { color:#94a3b8; font-size:12px; }
-
-/* Input area */
-#inputArea { display:flex; border-top:1px solid #334155; background:#111827; }
-#inputArea input { flex:1; padding:12px; border:none; outline:none; background:#1e293b; color:#fff; }
-#inputArea button { padding:12px 20px; border:none; background:#2563eb; color:#fff; cursor:pointer; }
-
-/* Login Panel */
-#loginPanel {
-  position:absolute; top:0; left:0; width:100%; height:100%;
-  background:rgba(15,23,42,0.95);
-  display:flex; justify-content:center; align-items:center; flex-direction:column;
-}
-#loginPanel input { padding:12px; margin:5px 0; width:250px; border:none; border-radius:6px; outline:none; }
-#loginPanel button { padding:12px; width:250px; border:none; border-radius:6px; background:#2563eb; color:#fff; cursor:pointer; margin-top:8px; font-weight:bold; font-size:14px; }
+*{margin:0;padding:0;box-sizing:border-box;font-family:sans-serif;}
+html,body{height:100%;background:#0f172a;color:#fff;}
+#container{display:flex;flex-direction:column;height:100%;}
+#topbar{background:#111827;padding:10px 20px;display:flex;align-items:center;font-size:16px;}
+#online-dot{width:12px;height:12px;border-radius:50%;background:#4ade80;margin-right:8px;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.3);opacity:0.6;}100%{transform:scale(1);opacity:1;}}
+#chatbox{flex:1;overflow-y:auto;padding:10px 20px;display:flex;flex-direction:column;}
+.message{margin-bottom:8px;}
+.message.user{font-weight:bold;}
+.message.system{color:#94a3b8;font-size:12px;}
+#inputArea{display:flex;border-top:1px solid #334155;background:#111827;}
+#inputArea input{flex:1;padding:12px;border:none;outline:none;background:#1e293b;color:#fff;}
+#inputArea button{padding:12px 20px;border:none;background:#2563eb;color:#fff;cursor:pointer;}
+#loginPanel{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,0.95);display:flex;justify-content:center;align-items:center;flex-direction:column;}
+#loginPanel input{padding:12px;margin:5px 0;width:250px;border:none;border-radius:6px;outline:none;}
+#loginPanel button{padding:12px;width:250px;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer;margin-top:8px;font-weight:bold;font-size:14px;}
 </style>
 </head>
 <body>
@@ -62,65 +43,66 @@ html, body { height:100%; background:#0f172a; color:#fff; }
 
 <script>
 let ws;
-let sessionId = localStorage.getItem("sessionId");
-if(!sessionId){ sessionId = crypto.randomUUID(); localStorage.setItem("sessionId", sessionId); }
-let username = localStorage.getItem("username") || "";
-
+let sessionId=localStorage.getItem("sessionId");
+if(!sessionId){sessionId=crypto.randomUUID();localStorage.setItem("sessionId",sessionId);}
+let username=localStorage.getItem("username")||"";
 if(username) login();
+
+const userColors={};
+const colors=["#38bdf8","#f472b6","#fde68a","#34d399","#f87171","#a78bfa","#fb923c"];
+
+function getUserColor(user){
+  if(!userColors[user]){
+    const color=colors[Object.keys(userColors).length%colors.length];
+    userColors[user]=color;
+  }
+  return userColors[user];
+}
 
 function login(){
   if(!username){
-    username = document.getElementById("username").value.trim();
-    if(!username || username.length<3){ alert("نام کاربری کوتاه است"); return; }
-    localStorage.setItem("username", username);
+    username=document.getElementById("username").value.trim();
+    if(!username||username.length<3){alert("نام کاربری کوتاه است");return;}
+    localStorage.setItem("username",username);
   }
 
-  const proto = location.protocol==="https:"?"wss":"ws";
-  const port = location.port ? `:${location.port}` : "";
-  ws = new WebSocket(`${proto}://${location.hostname}${port}`);
+  const proto=location.protocol==="https:"?"wss":"ws";
+  const port=location.port?`:${location.port}`:"";
+  ws=new WebSocket(`${proto}://${location.hostname}${port}`);
 
-  ws.onopen = ()=> {
-    ws.send(JSON.stringify({ type:"login", username, sessionId }));
-  };
+  ws.onopen=()=>{ws.send(JSON.stringify({type:"login",username,sessionId}));};
 
-  ws.onmessage = (e)=>{
-    const msg = JSON.parse(e.data);
-
-    if(msg.type==="ok"){
-      document.getElementById("loginPanel").style.display="none";
+  ws.onmessage=(e)=>{
+    const msg=JSON.parse(e.data);
+    if(msg.type==="ok"){document.getElementById("loginPanel").style.display="none";}
+    if(msg.type==="chat"||msg.type==="history"){ // نمایش پیام‌ها
+      if(Array.isArray(msg.data)){ // history
+        msg.data.forEach(m=>addMessage({type:"chat",user:m.user,text:m.text}));
+      } else addMessage(msg);
     }
-
-    if(msg.type==="chat"){
-      addMessage(`<div class="message user">${msg.user}: ${msg.text}</div>`);
-    }
-
-    if(msg.type==="system"){
-      addMessage(`<div class="message system">${msg.message}</div>`);
-    }
-
-    if(msg.type==="online"){
-      document.getElementById("onlineCount").innerText = msg.data.length;
-    }
-
-    if(msg.type==="error"){
-      alert(msg.message);
-      ws.close();
-    }
+    if(msg.type==="system") addMessage(msg);
+    if(msg.type==="online") document.getElementById("onlineCount").innerText=msg.data.length;
+    if(msg.type==="error"){alert(msg.message); ws.close();}
   };
 }
 
 function send(){
-  const text = document.getElementById("msg").value.trim();
+  const text=document.getElementById("msg").value.trim();
   if(!text) return;
-  ws.send(JSON.stringify({ type:"chat", text }));
-  document.getElementById("msg").value = "";
+  ws.send(JSON.stringify({type:"chat",text}));
+  document.getElementById("msg").value="";
 }
 
-function addMessage(html){
-  const div = document.createElement("div");
-  div.innerHTML = html;
+function addMessage(msg){
+  const div=document.createElement("div");
+  if(msg.type==="chat"){
+    const color=getUserColor(msg.user);
+    div.innerHTML=`<span class="message user" style="color:${color}">${msg.user}:</span> <span>${msg.text}</span>`;
+  } else if(msg.type==="system"){
+    div.innerHTML=`<div class="message system">${msg.message}</div>`;
+  }
   document.getElementById("chatbox").appendChild(div);
-  document.getElementById("chatbox").scrollTop = 99999;
+  document.getElementById("chatbox").scrollTop=99999;
 }
 </script>
 </body>
