@@ -4,7 +4,6 @@ const WebSocket = require("ws");
 
 const PORT = 8080;
 
-// ساخت سرور HTTP
 const server = http.createServer((req, res) => {
   if (req.url === "/" || req.url === "/index.html") {
     const html = fs.readFileSync("index.html", "utf8");
@@ -13,17 +12,16 @@ const server = http.createServer((req, res) => {
   }
 });
 
-// WebSocket
 const wss = new WebSocket.Server({ server });
 
-// کاربران آنلاین: username -> { sessionId, ws, lastSeen }
-const users = {};
+// کاربران آنلاین
+const users = {}; // username -> { sessionId, ws, lastSeen }
+const messages = []; // ذخیره پیام‌ها
 
 function sanitize(text) {
   return String(text).replace(/[<>]/g, "");
 }
 
-// ارسال پیام به همه کاربران
 function broadcast(msg) {
   const data = JSON.stringify(msg);
   Object.values(users).forEach(u => {
@@ -31,7 +29,6 @@ function broadcast(msg) {
   });
 }
 
-// بروزرسانی آنلاین‌ها
 function updateOnline() {
   broadcast({
     type: "online",
@@ -39,7 +36,6 @@ function updateOnline() {
   });
 }
 
-// اتصال جدید
 wss.on("connection", ws => {
   let currentUser = null;
 
@@ -47,7 +43,7 @@ wss.on("connection", ws => {
     let msg;
     try { msg = JSON.parse(data); } catch { return; }
 
-    // ورود به چت
+    // ورود کاربر
     if (msg.type === "login") {
       const username = sanitize(msg.username);
       const sessionId = msg.sessionId;
@@ -66,34 +62,30 @@ wss.on("connection", ws => {
         users[username].ws = ws;
         users[username].lastSeen = Date.now();
       } else {
-        users[username] = {
-          sessionId,
-          ws,
-          lastSeen: Date.now()
-        };
+        users[username] = { sessionId, ws, lastSeen: Date.now() };
         broadcast({ type: "system", message: username + " وارد شد" });
       }
 
       currentUser = username;
       ws.send(JSON.stringify({ type: "ok" }));
+
+      // ارسال تاریخچه پیام‌ها
+      ws.send(JSON.stringify({ type: "history", data: messages }));
+
       updateOnline();
     }
 
     // پیام چت
     if (msg.type === "chat" && currentUser) {
-      broadcast({
-        type: "chat",
-        user: currentUser,
-        text: sanitize(msg.text)
-      });
+      const chatMsg = { user: currentUser, text: sanitize(msg.text) };
+      messages.push(chatMsg);
+      broadcast({ type: "chat", ...chatMsg });
     }
   });
 
   ws.on("close", () => {
     if (currentUser && users[currentUser]) {
       users[currentUser].lastSeen = Date.now();
-
-      // grace period 5 ثانیه
       setTimeout(() => {
         if (users[currentUser] && Date.now() - users[currentUser].lastSeen > 5000) {
           delete users[currentUser];
@@ -105,7 +97,4 @@ wss.on("connection", ws => {
   });
 });
 
-// اجرا
-server.listen(PORT, () => {
-  console.log("Server running on port", PORT);
-});
+server.listen(PORT, () => console.log("Server running on port", PORT));
